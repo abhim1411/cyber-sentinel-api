@@ -1,10 +1,17 @@
-from fastapi import FastAPI, Query, UploadFile, File
+from fastapi import FastAPI, Query, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
 import uvicorn
 import os
+import shutil
 from datetime import datetime
 
 app = FastAPI()
-# History store karne ke liye list
+
+# Photos save karne ke liye folder
+UPLOAD_DIR = "captured_photos"
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+
 incident_history = []
 
 @app.get("/status")
@@ -15,6 +22,15 @@ async def get_latest():
 async def get_history():
     return incident_history[:20]
 
+# --- IMAGE DOWNLOAD ENDPOINT (Mobile App ke liye) ---
+@app.get("/download_photo/{incident_id}")
+async def download_photo(incident_id: str):
+    file_path = os.path.join(UPLOAD_DIR, f"{incident_id}.jpg")
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    # Agar photo nahi milti toh default error
+    raise HTTPException(status_code=404, detail="Photo not found")
+
 @app.post("/report")
 async def report_incident(
     status: str = Query(...), 
@@ -22,15 +38,23 @@ async def report_incident(
     gps: str = Query(...),
     photo: UploadFile = File(None)
 ):
+    incident_id = os.urandom(3).hex()
+    
+    # Image ko save karne ka logic
+    if photo:
+        file_path = os.path.join(UPLOAD_DIR, f"{incident_id}.jpg")
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(photo.file, buffer)
+
     new_alert = {
         "status": status,
         "user": user,
         "gps": gps,
         "timestamp": datetime.now().strftime("%H:%M:%S | %d %b"),
-        "id": os.urandom(3).hex() 
+        "id": incident_id 
     }
     incident_history.insert(0, new_alert)
-    return {"res": "SYNC_SUCCESS"}
+    return {"res": "SYNC_SUCCESS", "id": incident_id}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
