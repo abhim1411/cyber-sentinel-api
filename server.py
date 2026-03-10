@@ -58,7 +58,7 @@ async def trigger_lock():
 async def get_lock_status():
     return lock_state
 
-@app.post("/reset_lock")
+@app.get("/reset_lock")
 async def reset_lock():
     global lock_state
     lock_state["lock_active"] = False
@@ -98,4 +98,5 @@ async def acknowledge_incident(incident_id: str):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
+
     uvicorn.run(app, host="0.0.0.0", port=port)
